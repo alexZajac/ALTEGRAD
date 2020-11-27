@@ -25,7 +25,7 @@ class Encoder(nn.Module):
         # fill the gaps # (transform input into embeddings and pass embeddings to RNN)
         # you should return a tensor of shape (seq,batch,feat)
         embedded_input = self.embedding(input_tensor)
-        _, hs = self.rnn(embedded_input)
+        hs, _ = self.rnn(embedded_input)
         return hs
 
 
@@ -46,11 +46,9 @@ class seq2seqAtt(nn.Module):
         target_h_rep = target_h.repeat(source_hs.size(0), 1, 1)
         # fill the gaps
         # implement the score computation part of the concat formulation (see section 3.1. of Luong 2015)
-        concat_output = self.ff_score(torch.tanh(
-            self.ff_concat(torch.cat((target_h_rep, source_hs), 2))))
+        concat_output = torch.cat((target_h_rep, source_hs), 2)
         # should be of shape (seq,batch,1)
-        scores = torch.exp(concat_output) / \
-            torch.sum(torch.exp(concat_output), 0, keepdim=True)
+        scores = self.ff_score(torch.tanh(self.ff_concat(concat_output)))
         # (seq,batch,1) -> (seq,batch). dim=2 because we don't want to squeeze the batch dim if batch size = 1
         scores = scores.squeeze(dim=2)
         norm_scores = torch.softmax(scores, 0)
@@ -192,11 +190,7 @@ class seq2seqModel(nn.Module):
 
             # fill the gap
             # get the next input to pass the decoder
-            predictions_indices = prediction.argmax(2).squeeze(0)
-            vocab_keys_list = list(self.vocab_t_inv.keys())
-            target_input = torch.LongTensor([
-                vocab_keys_list[max_index.item()] for max_index in predictions_indices
-            ]).unsqueeze(0).to(self.device)
+            target_input = prediction.argmax(2)
 
             eos_counter += torch.sum(target_input == self.eos_token).item()
 
