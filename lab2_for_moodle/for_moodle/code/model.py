@@ -3,10 +3,13 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils import data
 from torch.nn.utils.rnn import pad_sequence
+from pathlib import Path
 
 from tqdm import tqdm
 
 from nltk import word_tokenize
+import matplotlib.pyplot as plt
+from matplotlib import ticker
 
 
 class Encoder(nn.Module):
@@ -58,7 +61,7 @@ class seq2seqAtt(nn.Module):
         weighted_source_hs = (norm_scores * source_hs_p)
         # (feat,seq,batch) -> (seq,batch,feat) -> (1,batch,feat); keepdim otherwise sum squeezes
         ct = torch.sum(weighted_source_hs.permute((1, 2, 0)), 0, keepdim=True)
-        return ct
+        return ct, norm_scores
 
 
 class Decoder(nn.Module):
@@ -170,12 +173,17 @@ class seq2seqModel(nn.Module):
         pos = 0
         eos_counter = 0
         logits = []
+        decoder_attentions = torch.zeros(max_size, max_size)
 
         while True:
 
             if self.do_att:
-                source_context = self.att_mech(
+                source_context, attention_weights = self.att_mech(
                     target_h, source_hs)  # (1,batch,feat)
+                # attention weights has shape (hidden_dim_att,batch)
+                attn_size = attention_weights.shape[0]
+                decoder_attentions[pos,
+                                   :attn_size] = attention_weights.squeeze(1)
             else:
                 # (1,batch,feat) last hidden state of encoder
                 source_context = source_hs[-1, :, :].unsqueeze(0)
@@ -200,11 +208,9 @@ class seq2seqModel(nn.Module):
 
         # logits is a list of tensors -> (seq,batch,vocab)
         to_return = torch.cat(logits, 0)
-
         if is_prod:
             to_return = to_return.squeeze(dim=1)  # (seq,vocab)
-
-        return to_return
+        return to_return, decoder_attentions
 
     def fit(self, trainingDataset, testDataset, lr, batch_size, n_epochs, patience):
 
@@ -259,7 +265,7 @@ class seq2seqModel(nn.Module):
                             # no need to continue generating after we've exceeded the length of the longest ground truth sequence
                             max_size = batch_target.size(0)
 
-                        unnormalized_logits = self.forward(
+                        unnormalized_logits, _ = self.forward(
                             batch_source, max_size, is_prod)
 
                         sentence_loss = criterion(unnormalized_logits.flatten(
@@ -304,14 +310,54 @@ class seq2seqModel(nn.Module):
                 else '<EOS>' if elt == self.eos_token else '<SOS>' if elt == self.sos_token
                 else self.vocab_t_inv[elt] for elt in target_ints]
 
+    def visualize_attention(
+        self, input_sentence, output_sentence, attention_weights
+    ):
+        """Saves a matplot of the input/output sentence attention_weights"""
+        # Set up plot with colorbar
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+
+        # finding limits of input and output
+        input_list = input_sentence.split(' ')
+        output_list = output_sentence.split(' ')
+        input_limit = len(input_list)+1
+        output_limit = output_list.index('.')+1
+
+        # plotting attention map
+        mat_show = ax.matshow(
+            attention_weights[:output_limit, :input_limit], cmap='BuPu'
+        )
+        fig.colorbar(mat_show)
+
+        # Set up axes
+        ax.set_xticklabels([''] + input_sentence.split(' ') +
+                           ['<EOS>'], rotation=90)
+        ax.set_yticklabels([''] + output_sentence.split(' '))
+
+        # Show word at every x and y tick
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+
+        # save figure
+        path_to_save = Path('..') / 'data' / input_sentence
+        fig.savefig(path_to_save)
+
     def predict(self, source_nl):
         source_ints = self.sourceNl_to_ints(source_nl)
         # (seq) -> (<=max_size,vocab)
-        logits = self.forward(source_ints, self.max_size, True)
+        logits, attention_weights = self.forward(
+            source_ints, self.max_size, True
+        )
         # (<=max_size,1) -> (<=max_size)
         target_ints = logits.argmax(-1).squeeze()
         target_nl = self.targetInts_to_nl(target_ints.tolist())
-        return ' '.join(target_nl)
+        # save attention visualization
+        output_sentence = ' '.join(target_nl)
+        self.visualize_attention(
+            source_nl, output_sentence, attention_weights.detach().numpy()
+        )
+        return output_sentence
 
     def save(self, path_to_file):
         attrs = {attr: getattr(self, attr) for attr in self.ARGS}
@@ -319,7 +365,7 @@ class seq2seqModel(nn.Module):
         torch.save(attrs, path_to_file)
 
     # a class method does not see the inside of the class (a static method does not take self as first argument)
-    @classmethod
+    @ classmethod
     def load(cls, path_to_file):
         # allows loading on CPU a model trained on GPU, see https://discuss.pytorch.org/t/on-a-cpu-device-how-to-load-checkpoint-saved-on-gpu-device/349/6
         attrs = torch.load(

@@ -1,20 +1,21 @@
 from model import seq2seqModel
 import sys
 import json
+from pathlib import Path
 
 import torch
 from torch.utils import data
 
 # = = = = = = = = = = =
 
-path_root = "../"
+path_root = Path("..")
 
-path_to_model = path_root + 'code/'
+path_to_model = path_root / 'code'
 sys.path.insert(0, path_to_model)
 
 
-path_to_data = path_root + 'data/'
-path_to_save_models = path_root + 'models/'
+path_to_data = path_root / 'data'
+path_to_save_models = path_root / 'models'
 
 # = = = = = = = = = = =
 
@@ -32,7 +33,7 @@ class Dataset(data.Dataset):
 
 
 def load_pairs(train_or_test):
-    with open(path_to_data + 'pairs_' + train_or_test + '_ints.txt', 'r', encoding='utf-8') as file:
+    with open(path_to_data / f'pairs_{train_or_test }_ints.txt', 'r', encoding='utf-8') as file:
         pairs_tmp = file.read().splitlines()
     pairs_tmp = [elt.split('\t') for elt in pairs_tmp]
     pairs_tmp = [[[int(eltt) for eltt in elt[0].split()], [int(eltt) for eltt in
@@ -43,17 +44,17 @@ def load_pairs(train_or_test):
 # = = = = = = = = = = =
 
 do_att = True  # should always be set to True
-is_prod = False  # production mode or not
+is_prod = True  # production mode or not
 
 if not is_prod:
 
     pairs_train = load_pairs('train')
     pairs_test = load_pairs('test')
 
-    with open(path_to_data + 'vocab_source.json', 'r') as file:
+    with open(path_to_data / 'vocab_source.json', 'r') as file:
         vocab_source = json.load(file)  # word -> index
 
-    with open(path_to_data + 'vocab_target.json', 'r') as file:
+    with open(path_to_data / 'vocab_target.json', 'r') as file:
         vocab_target = json.load(file)  # word -> index
 
     vocab_target_inv = {v: k for k, v in vocab_target.items()}  # index -> word
@@ -84,11 +85,11 @@ if not is_prod:
 
     model.fit(training_set, test_set, lr=0.001,
               batch_size=64, n_epochs=20, patience=2)
-    model.save(path_to_save_models + 'my_model.pt')
+    model.save(path_to_save_models / 'my_model.pt')
 
 else:
 
-    model = seq2seqModel.load(path_to_save_models + 'pretrained_moodle.pt')
+    model = seq2seqModel.load(path_to_save_models / 'pretrained_moodle.pt')
 
     to_test = ['I am a student.',
                'I have a red car.',  # inversion captured
@@ -104,5 +105,13 @@ else:
                'The kids were playing hide and seek',
                'The cat fell asleep in front of the fireplace']
 
-    for elt in to_test:
+    attentions_to_test = [
+        'I have a red car.',
+        'This river is full of fish.',
+        'my brother likes pizza.',
+        'I did not mean to hurt you',
+        'She is so mean'
+    ]
+
+    for elt in attentions_to_test:
         print('= = = = = \n', '%s -> %s' % (elt, model.predict(elt)))
