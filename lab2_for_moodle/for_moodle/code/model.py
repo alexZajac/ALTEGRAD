@@ -343,7 +343,7 @@ class seq2seqModel(nn.Module):
         path_to_save = Path('..') / 'data' / input_sentence
         fig.savefig(path_to_save)
 
-    def predict(self, source_nl):
+    def predict(self, source_nl, should_visualize_attention):
         source_ints = self.sourceNl_to_ints(source_nl)
         # (seq) -> (<=max_size,vocab)
         logits, attention_weights = self.forward(
@@ -354,9 +354,10 @@ class seq2seqModel(nn.Module):
         target_nl = self.targetInts_to_nl(target_ints.tolist())
         # save attention visualization
         output_sentence = ' '.join(target_nl)
-        self.visualize_attention(
-            source_nl, output_sentence, attention_weights.detach().numpy()
-        )
+        if should_visualize_attention:
+            self.visualize_attention(
+                source_nl, output_sentence, attention_weights.detach().numpy()
+            )
         return output_sentence
 
     def save(self, path_to_file):

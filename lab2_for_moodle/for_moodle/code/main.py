@@ -45,6 +45,7 @@ def load_pairs(train_or_test):
 
 do_att = True  # should always be set to True
 is_prod = True  # production mode or not
+should_visualize_attention = False # whether to output attentions alignments
 
 if not is_prod:
 
@@ -105,13 +106,15 @@ else:
                'The kids were playing hide and seek',
                'The cat fell asleep in front of the fireplace']
 
-    attentions_to_test = [
+    attentions_test = [
         'I have a red car.',
         'This river is full of fish.',
         'my brother likes pizza.',
         'I did not mean to hurt you',
         'She is so mean'
     ]
+    input_sentences = attentions_test if should_visualize_attention else to_test
 
-    for elt in attentions_to_test:
-        print('= = = = = \n', '%s -> %s' % (elt, model.predict(elt)))
+    for elt in input_sentences:
+        prediction = model.predict(elt, should_visualize_attention)
+        print(f'= = = = = \n{elt} -> {prediction}')
