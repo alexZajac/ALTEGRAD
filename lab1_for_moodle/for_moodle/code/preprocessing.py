@@ -5,8 +5,8 @@ from bs4 import BeautifulSoup
 from collections import Counter
 from nltk.tokenize import TweetTokenizer
 
-path_read = 
-path_write = 
+path_read = "C:\\Users\\maxim\\OneDrive\\Bureau\\X\\altegrad\\Session 1\\data\\" #manual
+path_write = "C:\\Users\\maxim\\OneDrive\\Bureau\\X\\altegrad\\Session 1\\data\\" #manual
 
 min_freq = 5 # retain the words appearing at least this number of times
 oov_token = 0 # for out-of-vocabulary words
@@ -36,12 +36,11 @@ for counter,rev in enumerate(reviews):
 # ========== build vocab ==========
 
 ### fill the gap (create a list 'tokens' containing all the tokens in 'cleaned_reviews') ###
-tokens = ____
-
+tokens = [j for sub in cleaned_reviews for j in sub] 
 counts = dict(Counter(tokens))
 
 ### fill the gap (filter the dictionary 'counts' by retaining only the words that appear at least 'min_freq' times)
-counts = ____
+counts = dict([i for i in counts.items() if i[1] >= min_freq])
 
 with open(path_write + 'counts.json', 'w') as file:
     json.dump(counts, file, sort_keys=True, indent=4)
@@ -72,7 +71,9 @@ reviews_ints = []
 for i,rev in enumerate(cleaned_reviews):
     sublist = []
     ### fill the gaps (for the tokens that are not in 'word_to_index', use 'oov_token') ###
-
+    for i in range(len(rev)):
+        sublist.append(word_to_index.get(rev[i], oov_token))
+    reviews_ints.append(sublist)
 
 with open(path_write + 'doc_ints.txt', 'w') as file:
     for rev in reviews_ints:

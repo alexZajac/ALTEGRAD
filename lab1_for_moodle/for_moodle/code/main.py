@@ -22,17 +22,24 @@ def get_windows(seq,n):
         result = result[1:] + (elem,)
         yield result
 
-def sample_examples(docs,max_window_size,n_windows):
+def sample_examples(docs,max_window_size,n_windows,n_negs, neg_distr):
     '''generate target,context pairs and negative examples'''
+    # docs = [["generate", "target","context","pairs", "and", "negative", "examples"],
+    #         ["lollll", "hlhj","contefdfdxt","dfd", "dfdfd", "negagzftive", "grgrgr"],
+    #         ["ebhz", "gr","contgrezext","zrgz", "anrgd", "negargtive", "exramples"]]
+    # max_window_size = 6
+    # n_windows = 3
     windows = []
     for i,doc in enumerate(docs):
         ### fill the gaps (get windows of size 'window_size' from the current document. Sample 'window_size' uniformly in {1,...,max_window_size}) ###
-
+        window = get_windows(doc, 2*round(np.random.uniform(1, max_window_size))+1)
+        windows.append(window)
     windows = [elt for sublist in windows for elt in sublist] # flatten
     windows = list(np.random.choice(windows,size=n_windows)) # select a subset
     
-    all_negs = ### fill the gap (sample n_negs*len(windows) negatives according to some probability distribution ###
-    
+    #proba = [np.sqrt(x / sum_freq) for x in list(counts.values())]
+    proba = neg_distr
+    all_negs = list(np.random.choice(list(vocab.values()), size=n_negs*len(windows), p=proba))### fill the gap (sample n_negs*len(windows) negatives according to some probability distribution ###
     return windows,all_negs
 
 def compute_dot_products(pos,negs,target):
@@ -42,15 +49,22 @@ def compute_dot_products(pos,negs,target):
 def compute_loss(prodpos,prodnegs):
     '''prodpos and prodnegs are numpy vectors containing the dot products of the context word vectors with the target word vector'''
     ### fill the gaps ###
+    term_pos = np.log(1 +  np.exp(-prodpos))
+    term_negs = np.log(1 + np.exp(prodnegs))
     return np.sum(term_pos) + np.sum(term_negs)
     
 def compute_gradients(pos,negs,target,prodpos,prodnegs):
     factors_pos = 1/(np.exp(prodpos)+1)
-    factors_negs = 1/(np.exp(-prodnegs)+1)
-    
+    factors_negs = 1/(np.exp(-prodnegs)+1)    
+
     ### fill the gaps ### 
+
+    partials_pos = -(np.tile(Wt[target,], (len(pos), 1)).T*factors_pos).T
+    partials_negs = (np.tile(Wt[target,], (len(negs), 1)).T*factors_negs).T
     
-    partial_target = np.sum(term_pos,axis=0) + np.sum(term_negs,axis=0)
+
+    
+    partial_target = np.sum(-(Wc[pos,].T * factors_pos).T,axis=0) + np.sum((Wc[negs,].T * factors_negs).T,axis=0)
     
     return partials_pos,partials_negs,partial_target
 
@@ -60,7 +74,7 @@ def my_cos_similarity(word1,word2):
 
 # = = = = = = = = = = = = = = = = = = = = = 
 
-path_read = 
+path_read = "C:\\Users\\maxim\\OneDrive\\Bureau\\X\\altegrad\\Session 1\\data\\" #manual
 path_write = path_read
 
 stpwds = set(stopwords.words('english'))
@@ -73,7 +87,7 @@ n_epochs = 15
 lr_0 = 0.025
 decay = 1e-6
 
-train = True
+train = False
 
 with open(path_read + 'doc_ints.txt', 'r') as file:
     docs = file.read().splitlines()
@@ -104,7 +118,7 @@ if train:
     
     for epoch in range(n_epochs):
         
-        windows,all_negs = sample_examples(docs,max_window_size,n_windows)
+        windows,all_negs = sample_examples(docs,max_window_size,n_windows,n_negs, neg_distr)
         print('training examples sampled')
         
         np.random.shuffle(windows)
@@ -121,18 +135,20 @@ if train:
                 negs = all_negs[n_negs*i:n_negs*i+n_negs]
                 
                 prods = compute_dot_products(pos,negs,target)
+
                 prodpos = prods[0:len(pos),]
                 prodnegs = prods[len(pos):(len(pos)+len(negs)),]
-                
+
                 partials_pos,partials_negs,partial_target = compute_gradients(pos,negs,target,prodpos,prodnegs)
-                
+
                 lr = lr_0 * 1/(1+decay*total_its)
                 total_its += 1
                 
                 ### fill the gaps (perform the updates) ###
-                Wt[target,] -=
-                Wc[pos,] -=
-                Wc[negs,] -=
+                Wt[target,] -= lr * partial_target
+                Wc[pos,] -= lr * partials_pos
+                Wc[negs,] -= lr * partials_negs
+
                 
                 total_loss += compute_loss(prodpos,prodnegs)
                 pbar.set_postfix({'loss':total_loss/(i+1),'lr':lr})
@@ -155,7 +171,9 @@ if not train:
 
     # = = some similarities = = 
     ### fill the gaps (compute the cosine similarity between some (un)related words, like movie/film/banana ###
-
+    #the cosine similarity, computes similarity as the normalized dot product of X and Y
+    print(my_cos_similarity("children", "others"))
+    
     # = = visualization of most frequent tokens = =
 
     n_plot = 500
@@ -176,8 +194,8 @@ if not train:
     my_tsne_fit = my_tsne.fit_transform(my_pca_fit)
 
     fig, ax = plt.subplots()
-    ax.scatter(,s=3) ### fill the gap ###
-    for x,y,token in zip(,mft): ### fill the gap ###
+    ax.scatter(my_tsne_fit[:, 0], my_tsne_fit[:, 1],s=3) ### fill the gap ###
+    for x,y,token in zip(my_tsne_fit[:, 0], my_tsne_fit[:, 1],mft): ### fill the gap ###
         ax.annotate(token, xy=(x,y), size=8)
 
     fig.suptitle('t-SNE visualization of word embeddings',fontsize=20)
