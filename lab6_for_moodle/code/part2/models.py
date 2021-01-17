@@ -23,7 +23,7 @@ class GNN(nn.Module):
 
         ##################
         Z0 = self.relu(torch.mm(adj, self.fc1(x_in)))
-        x = torch.mm(adj.transpose(1, 0), self.fc2(Z0))
+        x = self.relu(torch.mm(adj.transpose(1, 0), self.fc2(Z0)))
         ##################
 
         idx = idx.unsqueeze(1).repeat(1, x.size(1))

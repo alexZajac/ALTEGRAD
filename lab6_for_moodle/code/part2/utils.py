@@ -18,8 +18,9 @@ def create_dataset():
     ##################
     # your code here #
     n_graphs = 50
-    n = 10
+    lower_bound_n, higher_bound_n = 10, 20
     for _ in range(n_graphs):
+        n = randint(lower_bound_n, higher_bound_n)
         class_1_graph = fast_gnp_random_graph(n, 0.2)
         class_2_graph = fast_gnp_random_graph(n, 0.4)
         Gs.extend([class_1_graph, class_2_graph])
